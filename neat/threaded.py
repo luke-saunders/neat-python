@@ -74,23 +74,23 @@ class ThreadedEvaluator(object):
         """The worker function"""
         while self.working:
             try:
-                genome_id, genome, config = self.inqueue.get(
+                genome_id, genome, config, kwargs = self.inqueue.get(
                     block=True,
                     timeout=0.2,
                     )
             except queue.Empty:
                 continue
-            f = self.eval_function(genome, config)
+            f = self.eval_function(genome, config, **kwargs)
             self.outqueue.put((genome_id, genome, f))
 
-    def evaluate(self, genomes, config):
+    def evaluate(self, genomes, config, **kwargs):
         """Evaluate the genomes"""
         if not self.working:
             self.start()
         p = 0
         for genome_id, genome in genomes:
             p += 1
-            self.inqueue.put((genome_id, genome, config))
+            self.inqueue.put((genome_id, genome, config, kwargs))
 
         # assign the fitness back to each genome
         while p > 0:

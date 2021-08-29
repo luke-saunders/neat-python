@@ -518,7 +518,7 @@ class DistributedEvaluator(object):
                 if pool is None:
                     res = []
                     for genome_id, genome, config in tasks:
-                        fitness = self.eval_function(genome, config)
+                        fitness = self.eval_function(genome, config, **kwargs)
                         res.append((genome_id, fitness))
                 else:
                     genome_ids = []
@@ -527,7 +527,7 @@ class DistributedEvaluator(object):
                         genome_ids.append(genome_id)
                         jobs.append(
                             pool.apply_async(
-                                self.eval_function, (genome, config)
+                                self.eval_function, (genome, config), kwargs
                                 )
                             )
                     results = [
@@ -552,7 +552,7 @@ class DistributedEvaluator(object):
         if pool is not None:
             pool.terminate()
 
-    def evaluate(self, genomes, config):
+    def evaluate(self, genomes, config, **kwargs):
         """
         Evaluates the genomes.
         This method raises a ModeError if the
@@ -560,7 +560,7 @@ class DistributedEvaluator(object):
         """
         if self.mode != MODE_PRIMARY:
             raise ModeError("Not in primary mode!")
-        tasks = [(genome_id, genome, config) for genome_id, genome in genomes]
+        tasks = [(genome_id, genome, config, kwargs) for genome_id, genome in genomes]
         id2genome = {genome_id: genome for genome_id, genome in genomes}
         tasks = chunked(tasks, self.secondary_chunksize)
         n_tasks = len(tasks)
