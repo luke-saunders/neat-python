@@ -28,7 +28,7 @@ xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
 xor_outputs = [   (0.0,),     (1.0,),     (1.0,),     (0.0,)]
 
 
-def eval_genome(genome, config):
+def eval_genome(genome, config, **kwargs):
     """
     This function will be run in parallel by ParallelEvaluator.  It takes two
     arguments (a single genome and the genome class configuration data) and
@@ -40,6 +40,9 @@ def eval_genome(genome, config):
     last few lines in the file), otherwise you'll have made a fork bomb
     instead of a neuroevolution demo. :)
     """
+    
+    for key, value in kwargs.items():
+        print("{0} = {1}".format(key, value))
 
     net = neat.nn.FeedForwardNetwork.create(genome, config)
     error = 4.0
@@ -65,7 +68,7 @@ def run(config_file):
 
     # Run for up to 300 generations.
     pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
-    winner = p.run(pe.evaluate, 300)
+    winner = p.run(pe.evaluate, 300, test1=1, test2=2)
 
     # Display the winning genome.
     print('\nBest genome:\n{!s}'.format(winner))
