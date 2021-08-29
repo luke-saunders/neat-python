@@ -12,8 +12,12 @@ xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
 xor_outputs = [   (0.0,),     (1.0,),     (1.0,),     (0.0,)]
 
 
-def eval_genomes(genomes, config):
+def eval_genomes(genomes, config, **kwargs):
     for genome_id, genome in genomes:
+
+        for key, value in kwargs.items():
+            print("{0} = {1}".format(key, value))
+
         genome.fitness = 4.0
         net = neat.nn.FeedForwardNetwork.create(genome, config)
         for xi, xo in zip(xor_inputs, xor_outputs):
@@ -37,7 +41,7 @@ def run(config_file):
     p.add_reporter(neat.Checkpointer(5))
 
     # Run for up to 300 generations.
-    winner = p.run(eval_genomes, 300)
+    winner = p.run(eval_genomes, 300, test1=1, test2=2)
 
     # Display the winning genome.
     print('\nBest genome:\n{!s}'.format(winner))
