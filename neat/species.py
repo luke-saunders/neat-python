@@ -57,11 +57,18 @@ class DefaultSpeciesSet(DefaultClassConfig):
         self.indexer = count(1)
         self.species = {}
         self.genome_to_species = {}
+        self.dynamic_compatibility_threshold = self.species_set_config.compatibility_threshold_init
 
     @classmethod
     def parse_config(cls, param_dict):
-        return DefaultClassConfig(param_dict,
-                                  [ConfigParameter('compatibility_threshold', float)])
+        return DefaultClassConfig(param_dict, [
+                                    ConfigParameter('target_number_of_species', int),
+                                    ConfigParameter('compatibility_threshold_init', float),
+                                    ConfigParameter('compatibility_threshold_min', float),
+                                    ConfigParameter('compatibility_threshold_max', float),
+                                    ConfigParameter('compatibility_modifier', float),
+                                    ConfigParameter('review_frequency_inc', int),
+                                    ConfigParameter('review_frequency_dec', int)])
 
     def speciate(self, config, population, generation):
         """
@@ -75,7 +82,36 @@ class DefaultSpeciesSet(DefaultClassConfig):
         """
         assert isinstance(population, dict)
 
-        compatibility_threshold = self.species_set_config.compatibility_threshold
+        compatibility_adj = 0
+        number_of_species = len(self.species)
+        target_number_of_species = self.species_set_config.target_number_of_species             # desired number of species
+        compatibility_threshold_min = self.species_set_config.compatibility_threshold_min       # min limit for compatibility_threshold
+        compatibility_threshold_max = self.species_set_config.compatibility_threshold_max       # max limit for compatibility_threshold
+        compatibility_modifier = self.species_set_config.compatibility_modifier                 # compatibility change weight
+        review_frequency_inc = self.species_set_config.review_frequency_inc                     # frequency of value review, for number_of_species too low
+        review_frequency_dec = self.species_set_config.review_frequency_dec                     # frequency of value review, for number_of_species too high
+
+        # Fine tune the compatibility threshold
+        if (number_of_species < target_number_of_species) and ((generation+1) % review_frequency_inc == 0):
+            # Number of species is too low
+            num_species_gap = number_of_species - target_number_of_species  # negative number
+            compatibility_adj = compatibility_modifier * num_species_gap
+            self.dynamic_compatibility_threshold += compatibility_adj
+            if self.dynamic_compatibility_threshold < compatibility_threshold_min:
+                self.dynamic_compatibility_threshold = compatibility_threshold_min
+        elif (number_of_species > target_number_of_species) and ((generation+1) % review_frequency_dec == 0):
+            # Number of species is too high
+            num_species_gap = number_of_species - target_number_of_species  # positive number
+            compatibility_adj = compatibility_modifier * num_species_gap
+            self.dynamic_compatibility_threshold += compatibility_adj
+            if self.dynamic_compatibility_threshold > compatibility_threshold_max:
+                self.dynamic_compatibility_threshold = compatibility_threshold_max
+
+        if compatibility_adj >= 0:
+            comp_adj = '+' + str(round(compatibility_adj,4))
+        else:    
+            comp_adj = str(round(compatibility_adj,4))
+        self.reporters.info('Compatibility Threshold {0:.3f} ({1})'.format(self.dynamic_compatibility_threshold, comp_adj))
 
         # Find the best representatives for each existing species.
         unspeciated = set(population)
@@ -106,7 +142,7 @@ class DefaultSpeciesSet(DefaultClassConfig):
             for sid, rid in new_representatives.items():
                 rep = population[rid]
                 d = distances(rep, g)
-                if d < compatibility_threshold:
+                if d < self.dynamic_compatibility_threshold:
                     candidates.append((d, sid))
 
             if candidates:
