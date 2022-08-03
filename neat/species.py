@@ -48,7 +48,7 @@ class GenomeDistanceCache(object):
 
 
 class DefaultSpeciesSet(DefaultClassConfig):
-    """ Encapsulates the default speciation scheme. """
+    """Encapsulates the default speciation scheme."""
 
     def __init__(self, config, reporters):
         # pylint: disable=super-init-not-called
@@ -57,18 +57,25 @@ class DefaultSpeciesSet(DefaultClassConfig):
         self.indexer = count(1)
         self.species = {}
         self.genome_to_species = {}
-        self.dynamic_compatibility_threshold = self.species_set_config.compatibility_threshold_init
+        self.dynamic_compatibility_threshold = (
+            self.species_set_config.compatibility_threshold_init
+        )
 
     @classmethod
     def parse_config(cls, param_dict):
-        return DefaultClassConfig(param_dict, [
-                                    ConfigParameter('target_number_of_species', int),
-                                    ConfigParameter('compatibility_threshold_init', float),
-                                    ConfigParameter('compatibility_threshold_min', float),
-                                    ConfigParameter('compatibility_threshold_max', float),
-                                    ConfigParameter('compatibility_modifier', float),
-                                    ConfigParameter('review_frequency_inc', int),
-                                    ConfigParameter('review_frequency_dec', int)])
+        return DefaultClassConfig(
+            param_dict,
+            [
+                ConfigParameter("number_of_species_min", int),
+                ConfigParameter("number_of_species_max", int),
+                ConfigParameter("compatibility_threshold_init", float),
+                ConfigParameter("compatibility_threshold_min", float),
+                ConfigParameter("compatibility_threshold_max", float),
+                ConfigParameter("compatibility_modifier", float),
+                ConfigParameter("review_frequency_inc", int),
+                ConfigParameter("review_frequency_dec", int),
+            ],
+        )
 
     def speciate(self, config, population, generation):
         """
@@ -84,34 +91,62 @@ class DefaultSpeciesSet(DefaultClassConfig):
 
         compatibility_adj = 0
         number_of_species = len(self.species)
-        target_number_of_species = self.species_set_config.target_number_of_species             # desired number of species
-        compatibility_threshold_min = self.species_set_config.compatibility_threshold_min       # min limit for compatibility_threshold
-        compatibility_threshold_max = self.species_set_config.compatibility_threshold_max       # max limit for compatibility_threshold
-        compatibility_modifier = self.species_set_config.compatibility_modifier                 # compatibility change weight
-        review_frequency_inc = self.species_set_config.review_frequency_inc                     # frequency of value review, for number_of_species too low
-        review_frequency_dec = self.species_set_config.review_frequency_dec                     # frequency of value review, for number_of_species too high
+
+        # [min, max]
+        target_number_of_species = [0, 0]
+        # target number of species - lower limit
+        target_number_of_species[0] = self.species_set_config.number_of_species_min
+        # target number of species - upper limit
+        target_number_of_species[1] = self.species_set_config.number_of_species_max
+        # compatibility_threshold - lower limit
+        compatibility_threshold_min = (
+            self.species_set_config.compatibility_threshold_min
+        )
+        # compatibility_threshold - upper limit
+        compatibility_threshold_max = (
+            self.species_set_config.compatibility_threshold_max
+        )
+        # modifier weight compatibility change weight
+        compatibility_modifier = self.species_set_config.compatibility_modifier
+        # frequency of value review, for number_of_species too low
+        review_frequency_inc = self.species_set_config.review_frequency_inc
+        # frequency of value review, for number_of_species too high
+        review_frequency_dec = self.species_set_config.review_frequency_dec
 
         # Fine tune the compatibility threshold
-        if (number_of_species < target_number_of_species) and ((generation+1) % review_frequency_inc == 0):
+        if (number_of_species < target_number_of_species["min"]) and (
+            (generation + 1) % review_frequency_inc == 0
+        ):
             # Number of species is too low
-            num_species_gap = number_of_species - target_number_of_species  # negative number
+            num_species_gap = number_of_species - mean(target_number_of_species)
             compatibility_adj = compatibility_modifier * num_species_gap
             self.dynamic_compatibility_threshold += compatibility_adj
-            if self.dynamic_compatibility_threshold < compatibility_threshold_min:
-                self.dynamic_compatibility_threshold = compatibility_threshold_min
-        elif (number_of_species > target_number_of_species) and ((generation+1) % review_frequency_dec == 0):
+            # Clamp min value
+            self.dynamic_compatibility_threshold = max(
+                self.dynamic_compatibility_threshold, compatibility_threshold_min
+            )
+
+        elif (number_of_species > target_number_of_species["max"]) and (
+            (generation + 1) % review_frequency_dec == 0
+        ):
             # Number of species is too high
-            num_species_gap = number_of_species - target_number_of_species  # positive number
+            num_species_gap = number_of_species - mean(target_number_of_species)
             compatibility_adj = compatibility_modifier * num_species_gap
             self.dynamic_compatibility_threshold += compatibility_adj
-            if self.dynamic_compatibility_threshold > compatibility_threshold_max:
-                self.dynamic_compatibility_threshold = compatibility_threshold_max
+            # Clamp max value
+            self.dynamic_compatibility_threshold = min(
+                self.dynamic_compatibility_threshold, compatibility_threshold_max
+            )
 
         if compatibility_adj >= 0:
-            comp_adj = '+' + str(round(compatibility_adj,4))
-        else:    
-            comp_adj = str(round(compatibility_adj,4))
-        self.reporters.info('Compatibility Threshold {0:.3f} ({1})'.format(self.dynamic_compatibility_threshold, comp_adj))
+            comp_adj = "+" + str(round(compatibility_adj, 4))
+        else:
+            comp_adj = str(round(compatibility_adj, 4))
+        self.reporters.info(
+            "Compatibility Threshold {0:.3f} ({1})".format(
+                self.dynamic_compatibility_threshold, comp_adj
+            )
+        )
 
         # Find the best representatives for each existing species.
         unspeciated = set(population)
@@ -173,7 +208,10 @@ class DefaultSpeciesSet(DefaultClassConfig):
         gdmean = mean(distances.distances.values())
         gdstdev = stdev(distances.distances.values())
         self.reporters.info(
-            'Mean genetic distance {0:.3f}, standard deviation {1:.3f}'.format(gdmean, gdstdev))
+            "Mean genetic distance {0:.3f}, standard deviation {1:.3f}".format(
+                gdmean, gdstdev
+            )
+        )
 
     def get_species_id(self, individual_id):
         return self.genome_to_species[individual_id]
